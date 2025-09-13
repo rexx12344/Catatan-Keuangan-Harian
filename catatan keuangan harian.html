@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aplikasi Catatan Keuangan Harian</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    h1 { text-align: center; }
+    form { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    input, select, button { padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #007BFF; color: #fff; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #007BFF; color: white; }
+    .summary { margin-top: 20px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .chart-container { margin-top: 20px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+  <h1>Catatan Keuangan Harian</h1>
+  <form id="entryForm">
+    <input type="date" id="date" required />
+    <input type="text" id="description" placeholder="Deskripsi" required />
+    <select id="type">
+      <option value="pemasukan">Pemasukan</option>
+      <option value="pengeluaran">Pengeluaran</option>
+    </select>
+    <input type="text" id="amount" placeholder="Jumlah (mis. 200rb, 1jt)" required />
+    <input type="text" id="note" placeholder="Catatan" />
+    <button type="submit">Tambah</button>
+  </form>
+
+  <div class="summary">
+    <p><b>Total Pemasukan:</b> <span id="totalIncome">Rp 0</span></p>
+    <p><b>Total Pengeluaran:</b> <span id="totalExpense">Rp 0</span></p>
+    <p><b>Saldo:</b> <span id="balance">Rp 0</span></p>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="financeChart"></canvas>
+  </div>
+
+  <table id="entriesTable">
+    <thead>
+      <tr>
+        <th>Tanggal</th>
+        <th>Deskripsi</th>
+        <th>Kategori</th>
+        <th>Jumlah</th>
+        <th>Catatan</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    let entries = JSON.parse(localStorage.getItem('entries')) || [];
+    let chart;
+
+    function formatRupiah(angka) {
+      return 'Rp ' + angka.toLocaleString('id-ID');
+    }
+
+    function parseAmount(str) {
+      if (!str) return 0;
+      str = str.toLowerCase().replace(/\s+/g, '');
+      let num = 0;
+      if (str.endsWith('rb')) {
+        num = parseFloat(str.replace('rb','')) * 1000;
+      } else if (str.endsWith('jt') || str.endsWith('juta')) {
+        num = parseFloat(str.replace('jt','').replace('juta','')) * 1000000;
+      } else if (str.endsWith('m')) {
+        num = parseFloat(str.replace('m','')) * 1000000;
+      } else {
+        num = parseFloat(str);
+      }
+      return isNaN(num) ? 0 : num;
+    }
+
+    function renderChart(income, expense) {
+      const ctx = document.getElementById('financeChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Pemasukan', 'Pengeluaran'],
+          datasets: [{
+            data: [income, expense],
+            backgroundColor: ['#28a745', '#dc3545']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+
+    function renderEntries() {
+      const tbody = document.querySelector('#entriesTable tbody');
+      tbody.innerHTML = '';
+      let totalIncome = 0;
+      let totalExpense = 0;
+
+      entries.forEach((entry, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${entry.date}</td>
+          <td>${entry.description}</td>
+          <td>${entry.type}</td>
+          <td>${formatRupiah(entry.amount)}</td>
+          <td>${entry.note}</td>
+          <td><button onclick="deleteEntry(${index})">Hapus</button></td>
+        `;
+        tbody.appendChild(tr);
+
+        if (entry.type === 'pemasukan') totalIncome += entry.amount;
+        else totalExpense += entry.amount;
+      });
+
+      document.getElementById('totalIncome').textContent = formatRupiah(totalIncome);
+      document.getElementById('totalExpense').textContent = formatRupiah(totalExpense);
+      document.getElementById('balance').textContent = formatRupiah(totalIncome - totalExpense);
+
+      localStorage.setItem('entries', JSON.stringify(entries));
+
+      renderChart(totalIncome, totalExpense);
+    }
+
+    function deleteEntry(index) {
+      entries.splice(index, 1);
+      renderEntries();
+    }
+
+    document.getElementById('entryForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const date = document.getElementById('date').value;
+      const description = document.getElementById('description').value;
+      const type = document.getElementById('type').value;
+      const amount = parseAmount(document.getElementById('amount').value) || 0;
+      const note = document.getElementById('note').value;
+
+      entries.push({ date, description, type, amount, note });
+      renderEntries();
+      this.reset();
+    });
+
+    renderEntries();
+  </script>
+</body>
+</html>
